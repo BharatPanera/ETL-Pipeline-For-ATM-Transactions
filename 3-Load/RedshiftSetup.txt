@@ -1,0 +1,143 @@
+# ------------------------------------------- Load -------------------------------------------
+
+1. Create a Redshift cluster
+- Attach ss of that
+
+
+2. Setup database in the redshift cluster and create dimensions and fact
+- Attach ss of that
+
+- queries:
+
+# Create schema
+CREATE SCHEMA atm_data;
+
+# -------------------------- Dimensions --------------------------
+# Create dimension table - DIM_LOCATION
+CREATE TABLE atm_data.DIM_LOCATION
+(
+location_id INT NOT NULL DISTKEY SORTKEY,
+location VARCHAR(50),
+streetname VARCHAR(255),
+street_number INT,
+zipcode INT,
+lat DECIMAL(10,3),
+lon DECIMAL(10,3),
+PRIMARY KEY(location_id)
+);
+
+
+# Create dimension table - DIM_ATM
+CREATE TABLE atm_data.DIM_ATM
+(
+atm_id INT NOT NULL DISTKEY SORTKEY,
+atm_number VARCHAR(20),
+atm_manufacturer VARCHAR(50),
+atm_location_id INT,
+PRIMARY KEY(atm_id),
+FOREIGN KEY(atm_location_id) REFERENCES atm_data.DIM_LOCATION(location_id)
+);
+
+
+# Create dimension table - DIM_DATE
+CREATE TABLE atm_data.DIM_DATE
+(
+date_id INT NOT NULL DISTKEY SORTKEY,
+full_date_time TIMESTAMP,
+year INT,
+month VARCHAR(20),
+day INT,
+hour INT,
+weekday VARCHAR(20),
+PRIMARY KEY(date_id)
+);
+
+
+# Create dimension table - DIM_CARD_TYPE
+CREATE TABLE atm_data.DIM_CARD_TYPE
+(
+card_type_id INT NOT NULL DISTKEY SORTKEY,
+card_type VARCHAR(30),
+PRIMARY KEY(card_type_id)
+);
+
+# -------------------------- Fact --------------------------
+# Create Fact table - FACT_ATM_TRANS
+CREATE TABLE atm_data.FACT_ATM_TRANS
+(
+trans_id BIGINT NOT NULL DISTKEY SORTKEY,
+atm_id INT,
+weather_loc_id INT,
+date_id INT,
+card_type_id INT,
+atm_status VARCHAR(20),
+currency VARCHAR(10),
+service VARCHAR(20),
+transaction_amount INT,
+message_code VARCHAR(225),
+message_text VARCHAR(225),
+rain_3h DECIMAL(10,3),
+clouds_all INT,
+weather_id INT,
+weather_main VARCHAR(50),
+weather_description VARCHAR(255),
+PRIMARY KEY(trans_id),
+FOREIGN KEY(weather_loc_id) REFERENCES atm_data.DIM_LOCATION(location_id),
+FOREIGN KEY(atm_id) REFERENCES atm_data.DIM_ATM(atm_id),
+FOREIGN KEY(date_id) REFERENCES atm_data.DIM_DATE(date_id),
+FOREIGN KEY(card_type_id) REFERENCES atm_data.DIM_CARD_TYPE(card_type_id)
+);
+
+
+
+
+
+3. Load data into a Redshift cluster from AWS S3 bucket 
+# Queries to copy the data from S3 buckets to the Redshift cluster in the appropriate tables
+
+# Copy the data to table - dim_location
+COPY atm_data.dim_location 
+FROM 's3://etl-atm-data/dim_location/part-00000-fdd8607e-c7f3-4bf1-85d6-034256dcf3ae-c000.csv' 
+IAM_ROLE 'arn:aws:iam::654654310080:role/myRedshiftRole' 
+DELIMITER ',' 
+REGION 'us-east-1' 
+CSV;
+
+# Copy the data to table - dim_atm
+COPY atm_data.dim_atm
+FROM 's3://etl-atm-data/dim_atm/part-00000-13ec11a9-5a99-4e67-bf3d-77d36be09256-c000.csv' 
+IAM_ROLE 'arn:aws:iam::654654310080:role/myRedshiftRole' 
+DELIMITER ',' 
+REGION 'us-east-1' 
+CSV;
+
+# Copy the data to table - dim_date
+COPY atm_data.dim_date 
+FROM 's3://etl-atm-data/dim_date/part-00000-89fb4560-dd8d-4f8a-a610-dd9bf1b054b0-c000.csv' 
+IAM_ROLE 'arn:aws:iam::654654310080:role/myRedshiftRole' 
+DELIMITER ',' 
+REGION 'us-east-1' 
+CSV
+timeformat 'auto';
+
+# Copy the data to table - dim_card_type
+COPY atm_data.dim_card_type 
+FROM 's3://etl-atm-data/dim_card_type/part-00000-28105b18-516b-4f16-a32c-27e204b9d04c-c000.csv' 
+IAM_ROLE 'arn:aws:iam::654654310080:role/myRedshiftRole' 
+DELIMITER ',' 
+REGION 'us-east-1' 
+CSV;
+
+
+# Copy the data to fact table - fact_atm_trans
+COPY atm_data.fact_atm_trans 
+FROM 's3://etl-atm-data/fact_atm_trans/part-00000-2f09b28c-0ba5-493c-9c7b-e778ea20bae6-c000.csv' 
+IAM_ROLE 'arn:aws:iam::654654310080:role/myRedshiftRole' 
+DELIMITER ',' 
+REGION 'us-east-1' 
+CSV;
+
+
+
+
+
