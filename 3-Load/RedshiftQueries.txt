@@ -1,0 +1,182 @@
+# Top 10 ATMs where most transactions are in the ’inactive’ state
+SELECT atm_number, atm_manufacturer, location, COUNT(trans_id) AS transactions
+FROM atm_data.fact_atm_trans T
+INNER JOIN atm_data.dim_atm A ON T.atm_id = A.atm_id
+INNER JOIN atm_data.dim_location L ON A.atm_location_id = L.location_id
+WHERE atm_status = 'Inactive'
+GROUP BY atm_number, atm_manufacturer, location
+ORDER BY transactions DESC
+LIMIT 10;
+
+
+2. Number of ATM failures corresponding to the different weather conditions recorded at the time of the transactions
+WITH weather_atm_failure AS
+(
+    SELECT
+        weather_main,
+        COUNT(trans_id) AS transactions,
+        SUM(CASE WHEN atm_status='Inactive' THEN 1 ELSE 0 END) AS inactive_count
+    FROM
+        Atm_data.fact_atm_trans
+    WHERE
+        weather_main != ''
+    GROUP BY
+        weather_main
+)
+SELECT
+    *,
+    ROUND(CAST(inactive_count AS numeric(10,2)) / transactions * 100, 2) AS inactive_count_percent
+FROM
+    weather_atm_failure
+ORDER BY
+    inactive_count_percent DESC;
+
+
+3. Top 10 ATMs with the most number of transactions throughout the year
+SELECT
+    atm_number,
+    atm_manufacturer,
+    location,
+    COUNT(trans_id) AS transactions
+FROM
+    atm_data.fact_atm_trans T
+INNER JOIN
+    atm_data.dim_atm A ON T.atm_id = A.atm_id
+INNER JOIN
+    atm_data.dim_location L ON A.atm_location_id = L.location_id
+GROUP BY
+    atm_number,
+    atm_manufacturer,
+    location
+ORDER BY
+    transactions DESC
+LIMIT 10;
+
+
+
+4. Number of overall ATM transactions going inactive per month for each month
+WITH monthwise_atm_failure AS (
+    SELECT
+        month,
+        COUNT(F.trans_id) AS transactions,
+        SUM(CASE WHEN F.atm_status='Inactive' THEN 1 ELSE 0 END) AS inactive_count
+    FROM
+        atm_data.fact_atm_trans F
+    JOIN
+        atm_data.dim_date D ON F.date_id = D.date_id
+    GROUP BY
+        D.month
+)
+SELECT
+    *,
+    ROUND(CAST(inactive_count AS numeric(10,2)) / transactions * 100, 2) AS inactive_count_percent
+FROM
+    monthwise_atm_failure
+ORDER BY
+    inactive_count_percent DESC;
+
+
+5. Top 10 ATMs with the highest total withdrawn amount throughout the year
+SELECT
+    atm_number,
+    atm_manufacturer,
+    location,
+    SUM(transaction_amount) AS total_transaction_amount
+FROM
+    atm_data.fact_atm_trans T
+INNER JOIN
+    atm_data.dim_atm A ON T.atm_id = A.atm_id
+INNER JOIN
+    atm_data.dim_location L ON A.atm_location_id = L.location_id
+GROUP BY
+    atm_number,
+    atm_manufacturer,
+    location
+ORDER BY
+    total_transaction_amount DESC
+LIMIT
+    10;
+
+
+
+6. Number of failed ATM transactions across various card types
+WITH card_type_failure AS (
+    SELECT
+        card_type,
+        COUNT(trans_id) AS transactions,
+        SUM(CASE WHEN atm_status = 'Inactive' THEN 1 ELSE 0 END) AS inactive_count
+    FROM
+        atm_data.fact_atm_trans F
+    JOIN
+        atm_data.dim_card_type C ON F.card_type_id = C.card_type_id
+    GROUP BY
+        card_type
+)
+SELECT
+    *,
+    ROUND(CAST(inactive_count AS numeric(10,2)) / transactions * 100, 2) AS inactive_count_percent
+FROM
+    card_type_failure
+ORDER BY
+    inactive_count_percent DESC;
+
+
+7. Number of transactions happening on an ATM on weekdays and on weekends throughout the year. Order this by the ATM_number, ATM_manufacturer, location, weekend_flag and then total_transaction_count
+SELECT
+    atm_number,
+    atm_manufacturer,
+    location,
+    CASE WHEN weekday IN ('Sunday', 'Saturday') THEN 1 ELSE 0 END AS weekend_flag,
+    COUNT(trans_id) AS transactions
+FROM
+    atm_data.fact_atm_trans T
+INNER JOIN
+    atm_data.dim_atm A ON T.atm_id = A.atm_id
+INNER JOIN
+    atm_data.dim_location L ON A.atm_location_id = L.location_id
+INNER JOIN
+    atm_data.dim_date D ON T.date_id = D.date_id
+GROUP BY
+    atm_number,
+    atm_manufacturer,
+    location,
+    weekend_flag
+ORDER BY
+    atm_number,
+    atm_manufacturer,
+    location,
+    weekend_flag,
+    transactions
+LIMIT
+    10;
+
+
+
+
+8. Most active day in each ATMs from location "Vejgaard"
+WITH atm_weekday_details AS (
+    SELECT atm_number, atm_manufacturer, location, weekday, COUNT(trans_id) AS transactions
+    FROM atm_data.fact_atm_trans T
+    INNER JOIN atm_data.dim_atm A ON T.atm_id = A.atm_id
+    INNER JOIN atm_data.dim_location L ON A.atm_location_id = L.location_id
+    INNER JOIN atm_data.dim_date D ON T.date_id = D.date_id
+    WHERE location = 'Vejgaard'
+    GROUP BY atm_number, atm_manufacturer, location, weekday
+),
+max_weekday AS (
+    SELECT weekday
+    FROM atm_weekday_details
+    WHERE transactions = (SELECT MAX(transactions) FROM atm_weekday_details)
+    LIMIT 1
+)
+SELECT *
+FROM atm_weekday_details
+WHERE weekday = (SELECT weekday FROM max_weekday)
+ORDER BY transactions;
+
+
+
+
+
+
+
